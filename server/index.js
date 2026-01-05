@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http'); // New
+const { Server } = require("socket.io"); // New
 const cors = require('cors');
 const { exec } = require('child_process');
 const fs = require('fs');
@@ -8,39 +10,54 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Create a robust HTTP server to handle WebSockets
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000", // Allow your React Client
+        methods: ["GET", "POST"]
+    }
+});
+
+// 1. Socket.io Logic (The "Multiplayer" Part)
+io.on('connection', (socket) => {
+    console.log(`User Connected: ${socket.id}`);
+
+    // 1. Join a specific room
+    socket.on('join-room', (roomId) => {
+        socket.join(roomId);
+        console.log(`User ${socket.id} joined room: ${roomId}`);
+    });
+
+    // 2. Broadcast only to that room
+    socket.on('code-change', ({ roomId, code }) => {
+        // .to(roomId) limits the message to that specific room
+        socket.to(roomId).emit('code-update', code);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User Disconnected');
+    });
+});
+
+// 2. Docker Execution Logic (Your existing code)
 app.post('/execute', (req, res) => {
-    const { code, language } = req.body;
-    
-    // 1. Safety Check (Basic)
+    const { code } = req.body;
     if (!code) return res.status(400).json({ output: "No code provided" });
 
-    // 2. Write code to a temp file (e.g., temp.py)
-    // In production, use unique IDs for filenames to support multiple users
-    const filename = 'temp_script.py'; 
+    const filename = `temp_${Date.now()}.py`; 
     const filePath = path.join(__dirname, filename);
-    
+
     fs.writeFileSync(filePath, code);
 
-    // 3. THE MAGIC: Run code inside a Docker container
-    // We mount the current folder (-v) so the container can see the file
-    // We use python:alpine because it's tiny and fast
     const dockerCommand = `docker run --rm -v "${__dirname}:/app" -w /app python:3.9-alpine python ${filename}`;
 
-    console.log(`Executing: ${dockerCommand}`);
-
     exec(dockerCommand, { timeout: 5000 }, (error, stdout, stderr) => {
-        // Cleanup: Delete the file after running
-        fs.unlinkSync(filePath);
-
-        if (error) {
-            // If the code crashed or timed out
-            console.error(`Error: ${stderr || error.message}`);
-            return res.json({ output: stderr || error.message });
-        }
-        
-        // Success
+        try { fs.unlinkSync(filePath); } catch (e) {} // Clean up
+        if (error) return res.json({ output: stderr || error.message });
         res.json({ output: stdout });
     });
 });
 
-app.listen(5000, () => console.log('Server running on port 5000'));
+// Start the SERVER (not just app)
+server.listen(5000, () => console.log('Server running on port 5000'));
