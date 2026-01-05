@@ -1,0 +1,27 @@
+services:
+  # 1. The Backend
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    volumes:
+      # THE MAGIC TRICK: We let the container access the Host's Docker Socket
+      # This allows the Node app inside the container to spin up Python containers on your laptop
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount code for hot-reloading (changes allow you to code without restarting)
+      - ./server:/app
+      - /app/node_modules
+
+  # 2. The Frontend
+  client:
+    build: ./client
+    ports:
+      - "3000:3000"
+    environment:
+      # Tell React to ignore the file watcher (fixes a common Ubuntu Docker bug)
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
