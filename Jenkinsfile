@@ -1,15 +1,15 @@
 pipeline {
     agent any
 
-    environment {
-        // This ensures Jenkins uses the node/docker tools installed on it
-        PATH = "/usr/local/bin:$PATH"
+    // 🔴 THIS IS THE MISSING PIECE 🔴
+    // It tells Jenkins to inject the "NodeJS" tool we installed in the Dashboard
+    tools {
+        nodejs 'NodeJS' 
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Get the latest code from GitHub
                 checkout scm
             }
         }
@@ -17,10 +17,9 @@ pipeline {
         stage('Build & Test Backend') {
             steps {
                 dir('server') {
-                    // Install dependencies and run a sanity check
+                    // Now 'npm' will work because the tool is loaded
                     sh 'npm install'
-                    // We don't have real tests yet, so we just check if it parses
-                    sh 'node -c index.js' 
+                    sh 'node -c index.js'
                 }
             }
         }
@@ -29,7 +28,6 @@ pipeline {
             steps {
                 dir('client') {
                     sh 'npm install'
-                    // Run the React build to ensure no syntax errors
                     sh 'npm run build'
                 }
             }
