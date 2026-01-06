@@ -1,11 +1,7 @@
 pipeline {
     agent any
 
-    // 🔴 THIS IS THE MISSING PIECE 🔴
-    // It tells Jenkins to inject the "NodeJS" tool we installed in the Dashboard
-    tools {
-        nodejs 'NodeJS' 
-    }
+    
 
     stages {
         stage('Checkout') {
